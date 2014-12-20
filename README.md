@@ -7,7 +7,7 @@ PinnacleSports do not hide their odds. They offer a free API, accessible to anyo
 
 Since not all researchers are well-versed in HTTP and XML, I have decided to share the Python script I have been using to download the data. Once called, it will connect to the PinnacleSports API every 120 seconds (this interval is configurable) and save the data to an sqlite database. The script has no dependencies other than the Python standard library.
 
-The database created by the script offers a convenient view, called `GAMESDENORM` that outputs a selection of the odds collected, more-or-less as they appear in [statsfair.com](www.statsfair.com/pinnacle), where pinnacle_download.py does the data collection.
+The database created by the script offers a convenient view, called `GAMESDENORM` that outputs a selection of the odds collected, more-or-less as they appear in [statsfair.com](http://www.statsfair.com/pinnacle), where pinnacle_download.py does the data collection.
 
 You can use the sqlite3 command line shell (downloadable from [here](https://www.sqlite.org/download.html)) to examine the data and/or export to file. Here is a sample session:
 
