@@ -15,7 +15,12 @@ You can use the sqlite3 command line shell (downloadable from [here](https://www
 $ sqlite3 pinnacle_odds.db
 SQLite version 3.8.7 2014-10-17 11:24:17
 Enter ".help" for usage hints.
-sqlite> select evid, evdate, sporttype, pahname, pavname, round(hprice,2), round(dprice, 2), round(vprice, 2), betlimit from gamesdenorm where evdate >= julianday('2014-12-20 16:45:00') and julianday('2014-12-21') and sporttype = 'Soccer' order by evid, evdate limit 10;
+sqlite> select evid, evdate, sporttype, pahname, pavname, round(hprice,2), round(dprice, 2), round(vprice, 2), betlimit 
+from gamesdenorm 
+where evdate >= julianday('2014-12-20 16:45:00') and julianday('2014-12-21') 
+and sporttype = 'Soccer' 
+order by evid, evdate 
+limit 10;
 423298448|2014-12-20 19:00:00|Soccer|Charleroi|Lierse|1.76|3.96|4.86|2000
 423298448|2014-12-20 19:00:00|Soccer|Charleroi|Lierse|1.99||1.93|4000
 423298448|2014-12-20 19:00:00|Soccer|Charleroi|Lierse|1.91||1.99|4000
@@ -28,7 +33,12 @@ sqlite> select evid, evdate, sporttype, pahname, pavname, round(hprice,2), round
 423298449|2014-12-20 19:00:00|Soccer|Oostende|Cercle Brugge|1.97||1.92|2000
 sqlite> .mode csv
 sqlite> .output odds.csv
-sqlite> select evid, evdate, sporttype, pahname, pavname, round(hprice,2), round(dprice, 2), round(vprice, 2), betlimit from gamesdenorm where evdate >= julianday('2014-12-20 16:45:00') and julianday('2014-12-21') and sporttype = 'Soccer' order by evid, evdate limit 10;```
+sqlite> select evid, evdate, sporttype, pahname, pavname, round(hprice,2), round(dprice, 2), round(vprice, 2), betlimit 
+from gamesdenorm 
+where evdate >= julianday('2014-12-20 16:45:00') and julianday('2014-12-21') 
+and sporttype = 'Soccer' 
+order by evid, evdate 
+limit 10;
 ```
 
 The above will data in the file `odds.csv`. Remember to use data ranges when you have lots of data, otherwise the export file might be too large for your liking.
