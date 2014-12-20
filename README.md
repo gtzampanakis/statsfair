@@ -29,6 +29,7 @@ sqlite> select evid, evdate, sporttype, pahname, pavname, round(hprice,2), round
 sqlite> .mode csv
 sqlite> .output odds.csv
 sqlite> select evid, evdate, sporttype, pahname, pavname, round(hprice,2), round(dprice, 2), round(vprice, 2), betlimit from gamesdenorm where evdate >= julianday('2014-12-20 16:45:00') and julianday('2014-12-21') and sporttype = 'Soccer' order by evid, evdate limit 10;```
+```
 
 The above will data in the file `odds.csv`. Remember to use data ranges when you have lots of data, otherwise the export file might be too large for your liking.
 
