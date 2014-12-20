@@ -5,7 +5,6 @@ import commonlib as cl
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 STATIC_URL = 'http://xml.pinnaclesports.com/pinnacleFeed.aspx?'
 SECONDS_BETWEEN_ANALYSES = 7 * 24 * 60 * 60 # 7 days
-DB_PATH = os.path.join(ROOT_DIR, 'data.db')
 
 BEFORE_SQL = '''
 	update odds
