@@ -33,6 +33,41 @@ def get_insert_args(table, on_conflict = None, **kwargs):
 	LOGGER.debug('get_insert_args sql: %s, args: %s', sql, values)
 	return sql, values
 
+def get_insert_args_mysql(table, on_conflict = None, **kwargs):
+
+	sql = '''
+		{verbs}
+		into {table}
+		({names})
+		values
+		({placeholders})
+		'''
+	names = [ ]
+	values = [ ]
+	for name, value in kwargs.iteritems():
+		names.append(name)
+		if hasattr(value, 'year') and hasattr(value, 'month') and hasattr(value, 'day'):
+			value = str(value.year) + '-' + str(value.month) + '-' + str(value.day)
+		values.append(value)
+	if on_conflict is None:
+		verbs = 'insert'
+	elif on_conflict == 'replace':
+		verbs = 'replace'
+	elif on_conflict == 'ignore':
+		verbs = 'insert ignore'
+	sql = sql.format(
+			table = table,
+			names = ', '.join(names),
+			placeholders = ', '.join(
+				'%s'
+				for v in values
+			),
+			verbs = verbs,
+	)
+	LOGGER.debug('get_insert_args sql: %s, args: %s', sql, values)
+	return sql, values
+
+
 def datetime_to_sqlite_str(dt):
 	return datetime.datetime.strftime(
 		dt, '%Y-%m-%d %H:%M'

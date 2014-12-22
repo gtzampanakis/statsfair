@@ -1,24 +1,28 @@
 import time, os, logging, sqlite3, datetime, logging.handlers, collections, urllib2, argparse
 import xml.etree.ElementTree as etree
+import MySQLdb as db_module
 import commonlib as cl
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
-STATIC_URL = 'http://xml.pinnaclesports.com/pinnacleFeed.aspx?'
+# STATIC_URL = 'http://xml.pinnaclesports.com/pinnacleFeed.aspx?'
+STATIC_URL = 'file:sample.xml'
 SECONDS_BETWEEN_ANALYSES = 7 * 24 * 60 * 60 # 7 days
+
+ERROR_DUPLICATE_KEY_NAME = 1061
 
 BEFORE_SQL = '''
 	update odds
 	set opening = null, latest = null
-	where odds.periodnumber = ?
-	and odds.type = ?
-	and odds.eventid = ?;
+	where odds.periodnumber = %s
+	and odds.type = %s
+	and odds.eventid = %s;
 '''
 AFTER_SQL1 = '''
 	update odds
 	set opening = 1
-	where odds.periodnumber = ?
-	and odds.type = ?
-	and odds.eventid = ?
+	where odds.periodnumber = %s
+	and odds.type = %s
+	and odds.eventid = %s
 	and exists (
 		select 1
 		from snapshots snex
@@ -56,9 +60,9 @@ AFTER_SQL1 = '''
 AFTER_SQL2 = '''
 	update odds
 	set latest = 1
-	where odds.periodnumber = ?
-	and odds.type = ?
-	and odds.eventid = ?
+	where odds.periodnumber = %s
+	and odds.type = %s
+	and odds.eventid = %s
 	and exists (
 		select 1
 		from snapshots snex
@@ -140,10 +144,80 @@ def dec_odds(amer_odds):
 	else:
 		return 100 / (-amer_odds) + 1
 
-def get_conn():
-	conn = sqlite3.connect(DB_PATH, timeout = 90.)
-	conn.execute('pragma foreign_keys = ON')
+def get_conn_mysql():
+
+	if os.path.exists(os.path.join(ROOT_DIR, 'pythonanywhere')):
+		db_api_conn = db_module.connect(
+			host = 'mysql.server',
+			user = 'giorgostzampanak',
+			passwd = 'foopassword',
+			db = 'giorgostzampanak$pinnacle11',
+# Even when the default encoding of the database is utf8, we have to use the
+# following two options because MySQLdb does not detect encoding and will still
+# try to use latin1.
+			use_unicode = True,
+# Use utf8, without the dash, otherwise MySQLdb gives a "cannot initialize
+# charset" error.
+			charset = 'utf8',
+		)
+	else:
+		db_api_conn = db_module.connect(
+			host = 'localhost',
+			user = 'root',
+			passwd = 'root',
+			db = 'pinn',
+# Even when the default encoding of the database is utf8, we have to use the
+# following two options because MySQLdb does not detect encoding and will still
+# try to use latin1.
+			use_unicode = True,
+# Use utf8, without the dash, otherwise MySQLdb gives a "cannot initialize
+# charset" error.
+			charset = 'utf8',
+		)
+
+
+	class Conn:
+		pass
+
+	conn = Conn()
+
+	def __enter__():
+		return conn
+
+	def __exit__(exc_type, exc_value, traceback):
+		if exc_type is not None:
+			try:
+				conn.db_api_conn.rollback()
+			except:
+				pass
+			conn.db_api_conn.close()
+
+		else:
+			try:
+				conn.db_api_conn.commit()
+			except:
+				conn.db_api_conn.close()
+				raise
+			conn.db_api_conn.close()
+
+		return False
+
+	def execute(sql, params = [ ]):
+		cursor = conn.db_api_conn.cursor()
+		cursor.execute(sql, params)
+		return cursor
+
+	def explain(sql, params = [ ]):
+		return conn.execute('explain ' + sql, params)
+
+	conn.db_api_conn = db_api_conn
+	conn.__enter__ = __enter__
+	conn.__exit__ = __exit__
+	conn.execute = execute
+	conn.explain = explain
+
 	return conn
+
 
 class Downloader:
 
@@ -152,106 +226,92 @@ class Downloader:
 
 
 	def make_db(self):
-		with get_conn() as conn:
-			conn.executescript('''
+		with get_conn_mysql() as conn:
+			create_sql = ('''
 			create table if not exists events(
-				id integer primary key,
-				date real not null,
-				sporttype text,
-				league text,
-				islive text,
-				description text
-			);
+				id int unsigned primary key, 
+				date datetime not null,
+				sporttype varchar(50),
+				league varchar(255),
+				islive bit(1) not null,
+				description varchar(255)
+			)engine = InnoDB|
 			create table if not exists participants(
-				eventid integer not null references events(id),
-				contestantnum integer not null,
-				rotnum integer not null,
-				vhdou text,
-				name text,
-				pitcher text,
-				primary key (eventid, contestantnum, rotnum)
-			);
+				id mediumint unsigned primary key auto_increment, 
+				eventid int unsigned not null,
+				contestantnum integer unsigned not null,
+				rotnum mediumint unsigned not null,
+				vhdou char(1) character set latin1,
+				name varchar(200) not null,
+				pitcher varchar(200),
+				unique (eventid, contestantnum, rotnum)
+			)engine = InnoDB|
 			create table if not exists periods(
-				eventid integer not null references events(id),
-				number integer not null,
-				description text not null,
-				cutoff real not null,
-				scorehome integer,
-				scorevisitor integer,
-				primary key (eventid, number)
-			);
+				id mediumint unsigned primary key auto_increment, 
+				eventid int unsigned not null,
+				number tinyint unsigned not null,
+				description varchar(25) not null,
+				cutoff datetime not null,
+				unique (eventid, number)
+			)engine = InnoDB|
 			create table if not exists snapshots(
-				eventid integer not null,
-				periodnumber integer,
-				date real not null,
-				status text,
-				upd text,
-				spreadmax integer,
-				mlmax integer,
-				totalmax integer,
-				primary key (eventid, periodnumber, date),
-				foreign key (eventid, periodnumber) references periods(eventid, number)
-			);
-
+				id integer unsigned primary key auto_increment,
+				eventid int unsigned not null,
+				periodnumber tinyint unsigned,
+				date datetime not null,
+				status char(1) character set latin1,
+				upd varchar(20),
+				spreadmax mediumint unsigned,
+				mlmax mediumint unsigned,
+				totalmax mediumint unsigned,
+				unique (eventid, periodnumber, date)
+			)engine = InnoDB|
 			create table if not exists odds(
-				eventid integer not null,
-				periodnumber integer,
-				contestantnum integer,
-				rotnum integer,
-				snapshotdate real not null,
-				type text not null,
-				vhdou text,
-				threshold float,
+				id integer unsigned primary key auto_increment, 
+				eventid int unsigned not null,
+				periodnumber tinyint unsigned,
+				contestantnum integer unsigned,
+				rotnum mediumint unsigned,
+				snapshotdate datetime not null,
+				type char(1) character set latin1 not null,
+				vhdou char(1) character set latin1,
+				threshold decimal(6,3),
 				price float not null,
-				to_base float, -- I have no idea what this is, but keeping it in case it's important and I find out why in the future.
-
-				bookmaker text,
-
-				opening integer,
-				latest integer,
-
-				primary key (eventid, periodnumber, snapshotdate, type, vhdou, threshold),
-				foreign key (eventid, periodnumber, snapshotdate) references snapshots(eventid, periodnumber, date),
-				foreign key (eventid, contestantnum, rotnum) references participants(eventid, contestantnum, rotnum),
-
+				to_base float,
+				opening tinyint unsigned,
+				latest tinyint unsigned,
+				unique (eventid, periodnumber, snapshotdate, type, vhdou, threshold),
 				check(price >= 1),
-
 				check(type = 'm' and threshold = 0 or type <> 'm')
 
-			);
+			)engine = InnoDB|
 
-			create table if not exists analysis(
-				id integer primary key,
-				last text not null
-			);
-
-			create index if not exists participants1 on participants(eventid, vhdou);
-			create index if not exists participants2 on participants(name);
-			create index if not exists participants3 on participants(vhdou collate nocase, eventid);
-			create index if not exists events1 on events(sporttype, date, id);
-			create index if not exists events2 on events(date, id);
-			create index if not exists events3 on events(date, islive);
-			create index if not exists odds1 on odds(snapshotdate, type);
-			create index if not exists odds2 on odds(type);
-			create index if not exists periods1 on periods(number);
+			create index participants1 on participants(eventid, vhdou)|
+			create index participants2 on participants(name)|
+			create index participants3 on participants(vhdou, eventid)|
+			create index events1 on events(sporttype, date, id)|
+			create index events2 on events(date, id)|
+			create index events3 on events(date, islive)|
+			create index odds1 on odds(snapshotdate, type)|
+			create index odds2 on odds(type)|
+			create index periods1 on periods(number)|
 
 
-			create view if not exists gamesdenorm as 
+			create or replace view gamesdenorm as 
 			select
 			ev.id as evid,
-			ev.date as evdatereal,
-			datetime(ev.date) as evdate,
+			ev.date as evdate,
 			ev.sporttype as sporttype,
 			ev.league as league, 
 			ev.islive,
 			pah.name as pahnameraw,
 			pah.pitcher pahpitcher,
 			(case when pah.pitcher is null then pah.name
-				else pah.name || ' (' || pah.pitcher || ')' end) as pahname, 
+				else concat(pah.name , ' (' , pah.pitcher , ')') end) as pahname, 
 			pav.name pavnameraw,
 			pav.pitcher pavpitcher,
 			(case when pav.pitcher is null then pav.name
-				else pav.name || ' (' || pav.pitcher || ')' end) as pavname, 
+				else concat(pav.name , ' (' , pav.pitcher , ')') end) as pavname, 
 			pe.number as penumber,
 			pe.description as pedesc,
 			odh.threshold as threshold, 
@@ -267,21 +327,18 @@ class Downloader:
 							when 's' then sn.spreadmax
 							when 't' then sn.totalmax
 			end) as betlimit,
-			odh.snapshotdate as snapshotdatereal,
-			datetime(odh.snapshotdate) as snapshotdate,
-			odh.opening,
-			odh.latest,
-			odh.rowid as id,
-			odh.rowid as hid,
-			odd.rowid as did,
-			odv.rowid as vid
+			odh.snapshotdate as snapshotdate,
+			odh.id as id,
+			odh.id as hid,
+			odd.id as did,
+			odv.id as vid
 
 
 			from
 
 			events ev
-			join participants pah on pah.eventid = ev.id and pah.vhdou = 'Home'
-			join participants pav on pav.eventid = ev.id and pav.vhdou = 'Visiting'
+			join participants pah on pah.eventid = ev.id and pah.vhdou = 'h'
+			join participants pav on pav.eventid = ev.id and pav.vhdou = 'v'
 			join periods pe on pe.eventid = ev.id
 			join odds odh on odh.eventid = ev.id and odh.periodnumber = pe.number 
 					and odh.type = odh.type 
@@ -301,7 +358,7 @@ class Downloader:
 			 * (because it uses values from the above JOIN), but also
 			 * needs to be before the ODD join, because the ODD join
 			 * uses values from it. */
-			left join participants pad on pad.eventid = ev.id and pad.vhdou = 'Draw' and odh.type = 'm'
+			left join participants pad on pad.eventid = ev.id and pad.vhdou = 'd' and odh.type = 'm'
 
 			left join odds odd on odd.eventid = ev.id 
 					and odd.periodnumber = pe.number 
@@ -310,7 +367,6 @@ class Downloader:
 					and pad.contestantnum = odd.contestantnum
 					and pad.rotnum = odd.rotnum
 
-
 			/* Sometimes contstantnums change in the same event, and 
 			sometimes events are posted with 'Draw' participants but
 			without moneyline odds (only spreads and totals are
@@ -318,17 +374,28 @@ class Downloader:
 			returned as null by this query, since a 'Draw' participant
 			is found but no odds record can be associated with him. The
 			following check will avoid those cases. */
-			where (pad.rowid is null and odd.rowid is null 
+			where (pad.id is null and odd.id is null 
 				or 
-				pad.rowid is not null and odd.rowid is not null)
+				pad.id is not null and odd.id is not null)
 			and (case odh.type when 'm' then sn.mlmax
 							when 's' then sn.spreadmax
 							when 't' then sn.totalmax
 			end) > 0
-			;
+			
 
 			'''
 			)
+			for query in create_sql.split('|'):
+				try:
+					conn.execute(query)
+				except (db_module.ProgrammingError, db_module.OperationalError) as e:
+					if (getattr(e, 'errno', None) == ERROR_DUPLICATE_KEY_NAME
+							or
+						getattr(e, 'args', [None])[0] == ERROR_DUPLICATE_KEY_NAME):
+							LOGGER.debug('Ignored ERROR_DUPLICATE_KEY_NAME exception.')
+					else:
+						raise
+
 
 	def parse_document(self, etree):
 		query_queue = collections.defaultdict(list)
@@ -358,7 +425,7 @@ class Downloader:
 								kwargs['type'],
 								kwargs['eventid']]
 					])
-				args_to_append = cl.get_insert_args(*args, **kwargs)
+				args_to_append = cl.get_insert_args_mysql(*args, **kwargs)
 				query_queue[eventid].append(args_to_append)
 				if args[0] == 'odds':
 					query_queue[eventid].append([
@@ -378,10 +445,10 @@ class Downloader:
 				'events',
 				'replace',
 				id = eventid,
-				date = (cl.datetime_to_sqlite_str(evdate_dt), 'julian'),
+				date = cl.datetime_to_sqlite_str(evdate_dt),
 				sporttype = event_el.find('sporttype').text,
 				league = event_el.find('league').text,
-				islive = islive,
+				islive = (1 if islive == 'Yes' else 0),
 				description = coalesce(event_el, 'description', 1),
 			)
 			for participant_el in event_el.findall('participants/participant'):
@@ -404,7 +471,7 @@ class Downloader:
 						'snapshots',
 						'replace',
 						eventid = eventid,
-						date = (snapshot_sqlite_str, 'julian'),
+						date = snapshot_sqlite_str,
 						mlmax = int(coalesce(event_el, 'contest_maximum', 1)),
 					)
 					add_args(
@@ -412,7 +479,7 @@ class Downloader:
 						'replace',
 						eventid = eventid,
 						periodnumber = None,
-						snapshotdate = (snapshot_sqlite_str, 'julian'),
+						snapshotdate = snapshot_sqlite_str,
 						type = 'm',
 						threshold = 0,
 						vhdou = None,
@@ -438,14 +505,14 @@ class Downloader:
 						eventid = eventid,
 						number = periodnumber,
 						description = period_el.find('period_description').text,
-						cutoff = (period_el.find('periodcutoff_datetimeGMT').text, 'julian'),
+						cutoff = period_el.find('periodcutoff_datetimeGMT').text,
 					)
 					add_args(
 						'snapshots',
 						'replace', 
 						eventid = eventid,
 						periodnumber = periodnumber,
-						date = (snapshot_sqlite_str, 'julian'),
+						date = snapshot_sqlite_str,
 						status = period_el.find('period_status').text,
 						upd = period_el.find('period_update').text,
 						spreadmax = int(float(period_el.find('spread_maximum').text)),
@@ -463,7 +530,7 @@ class Downloader:
 									None,
 									eventid = eventid,
 									periodnumber = periodnumber,
-									snapshotdate = (snapshot_sqlite_str, 'julian'),
+									snapshotdate = snapshot_sqlite_str,
 									type = 'm',
 									threshold = 0,
 									vhdou = vhd,
@@ -486,7 +553,7 @@ class Downloader:
 									None,
 									eventid = eventid,
 									periodnumber = periodnumber,
-									snapshotdate = (snapshot_sqlite_str, 'julian'),
+									snapshotdate = snapshot_sqlite_str,
 									type = 's',
 									vhdou = vhd,
 									threshold = float(spread_el.find('spread_' + vhd).text),
@@ -508,7 +575,7 @@ class Downloader:
 								None,
 								eventid = eventid,
 								periodnumber = periodnumber,
-								snapshotdate = (snapshot_sqlite_str, 'julian'),
+								snapshotdate = snapshot_sqlite_str,
 								type = 't',
 								vhdou = ou,
 								threshold = float(total_el.find('total_points').text),
@@ -521,7 +588,7 @@ class Downloader:
 								rotnum = rotnum,
 							)
 
-		with get_conn() as conn:
+		with get_conn_mysql() as conn:
 			LOGGER.info('Queue holds %s queries. Starting execution...', sum(len(al) for al in query_queue.itervalues()))
 			for argslist in query_queue.itervalues():
 				for args in argslist:
@@ -586,10 +653,7 @@ if __name__ == '__main__':
 			'Default is 120.',
 			type = int,
 			default = 120)
-	parser.add_argument('DB_PATH', help = 'Path to the database file. '
-				'It will be created if it does not exist.')
 	args = parser.parse_args()
-	DB_PATH = args.DB_PATH
 	UPDATE_INTERVAL = args.i
 	formatter = logging.Formatter(fmt = '%(asctime)s %(levelname)s %(name)s: %(message)s')
 	ROOT_LOGGER.setLevel(logging.DEBUG)
