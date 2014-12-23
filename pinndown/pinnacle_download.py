@@ -18,8 +18,8 @@ BEFORE_SQL = '''
 	and odds.eventid = %s;
 '''
 AFTER_SQL1 = '''
-	update odds
-	set opening = 1
+	select odds.id
+	from odds
 	where odds.periodnumber = %s
 	and odds.type = %s
 	and odds.eventid = %s
@@ -58,8 +58,8 @@ AFTER_SQL1 = '''
 	)
 '''
 AFTER_SQL2 = '''
-	update odds
-	set latest = 1
+	select odds.id
+	from odds
 	where odds.periodnumber = %s
 	and odds.type = %s
 	and odds.eventid = %s
@@ -207,6 +207,9 @@ def get_conn_mysql():
 		cursor.execute(sql, params)
 		return cursor
 
+	def commit():
+		return conn.db_api_conn.commit()
+
 	def explain(sql, params = [ ]):
 		return conn.execute('explain ' + sql, params)
 
@@ -215,6 +218,7 @@ def get_conn_mysql():
 	conn.__exit__ = __exit__
 	conn.execute = execute
 	conn.explain = explain
+	conn.commit = commit
 
 	return conn
 
@@ -592,7 +596,18 @@ class Downloader:
 			LOGGER.info('Queue holds %s queries. Starting execution...', sum(len(al) for al in query_queue.itervalues()))
 			for argslist in query_queue.itervalues():
 				for args in argslist:
-					conn.execute(*args)
+					if args[0] != AFTER_SQL1 and args[0] != AFTER_SQL2:
+						conn.execute(*args)
+					else:
+						odds_ids = conn.execute(args[0], args[1]).fetchall()
+						for odds_id in odds_ids:
+							conn.execute('''
+								update odds
+								set {col} = 1
+								where id = %s
+							'''.format(col = 'opening' 
+									if args[0] == AFTER_SQL1 
+									else 'latest'), [odds_id])
 				conn.commit()
 			LOGGER.info('Queue execution done.')
 			# Analyze if needed:
