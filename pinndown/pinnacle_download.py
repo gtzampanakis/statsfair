@@ -10,6 +10,18 @@ SECONDS_BETWEEN_ANALYSES = 7 * 24 * 60 * 60 # 7 days
 
 ERROR_DUPLICATE_KEY_NAME = 1061
 
+VHDOU_VAL = {
+		'Draw' : 'd',
+		'Home' : 'h',
+		'Visiting' : 'v',
+		'draw' : 'd',
+		'home' : 'h',
+		'visiting' : 'v',
+		'over' : 'o',
+		'under' : 'u',
+		None : None
+}
+
 BEFORE_SQL = '''
 	update odds
 	set opening = null, latest = null
@@ -466,7 +478,7 @@ class Downloader:
 					eventid = eventid,
 					contestantnum = contestantnum,
 					rotnum = rotnum,
-					vhdou = vhd,
+					vhdou = VHDOU_VAL[vhd],
 					pitcher = pitcher,	
 					name = participant_el.find('participant_name').text,
 				)
@@ -537,7 +549,7 @@ class Downloader:
 									snapshotdate = snapshot_sqlite_str,
 									type = 'm',
 									threshold = 0,
-									vhdou = vhd,
+									vhdou = VHDOU_VAL[vhd],
 									price = dec_odds(
 										coalesce(
 											moneyline_el, 'moneyline_' + vhd, 1
@@ -559,7 +571,7 @@ class Downloader:
 									periodnumber = periodnumber,
 									snapshotdate = snapshot_sqlite_str,
 									type = 's',
-									vhdou = vhd,
+									vhdou = VHDOU_VAL[vhd],
 									threshold = float(spread_el.find('spread_' + vhd).text),
 									price = dec_odds(
 										coalesce(

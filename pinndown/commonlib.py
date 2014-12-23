@@ -41,6 +41,7 @@ def get_insert_args_mysql(table, on_conflict = None, **kwargs):
 		({names})
 		values
 		({placeholders})
+		{dup}
 		'''
 	names = [ ]
 	values = [ ]
@@ -49,10 +50,18 @@ def get_insert_args_mysql(table, on_conflict = None, **kwargs):
 		if hasattr(value, 'year') and hasattr(value, 'month') and hasattr(value, 'day'):
 			value = str(value.year) + '-' + str(value.month) + '-' + str(value.day)
 		values.append(value)
+	dup = ''
 	if on_conflict is None:
 		verbs = 'insert'
 	elif on_conflict == 'replace':
-		verbs = 'replace'
+		verbs = 'insert'
+		dup = 'on duplicate key update'
+		dup += '\n'
+		dup += ', '.join(
+				name + ' = ' + '%s'
+				for name, value
+				in zip(names, values)
+				)
 	elif on_conflict == 'ignore':
 		verbs = 'insert ignore'
 	sql = sql.format(
@@ -63,7 +72,10 @@ def get_insert_args_mysql(table, on_conflict = None, **kwargs):
 				for v in values
 			),
 			verbs = verbs,
+			dup = dup,
 	)
+	if dup != '':
+		values = values * 2
 	LOGGER.debug('get_insert_args sql: %s, args: %s', sql, values)
 	return sql, values
 
