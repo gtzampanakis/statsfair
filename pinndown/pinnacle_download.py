@@ -4,8 +4,8 @@ import MySQLdb as db_module
 import commonlib as cl
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
-# STATIC_URL = 'http://xml.pinnaclesports.com/pinnacleFeed.aspx?'
-STATIC_URL = 'file:sample.xml'
+STATIC_URL = 'http://xml.pinnaclesports.com/pinnacleFeed.aspx?'
+# STATIC_URL = 'file:sample.xml'
 SECONDS_BETWEEN_ANALYSES = 7 * 24 * 60 * 60 # 7 days
 
 ERROR_DUPLICATE_KEY_NAME = 1061
@@ -146,6 +146,15 @@ def coalesce(etree, xpath, get_text = False):
 			res = res.text
 		return res
 	return None
+
+def fix_to_base(val):
+# There are times where Pinnacle sends a value of -1.79769313486232E+308.  This
+# is out of range for MySQL and thus an error is given. This value is obviously
+# wrong so setting a value of 0 for them.
+	if val == '-1.79769313486232E+308':
+		val = 0.
+	return val
+
 
 def dec_odds(amer_odds):
 	if amer_odds is None:
@@ -504,9 +513,9 @@ class Downloader:
 								participant_el, 'odds/moneyline_value', 1
 							)
 						),
-						to_base = coalesce(
+						to_base = fix_to_base(coalesce(
 									participant_el, 'odds/to_base', 1
-						),
+						)),
 						contestantnum = contestantnum,
 						rotnum = rotnum,
 
@@ -593,7 +602,7 @@ class Downloader:
 								periodnumber = periodnumber,
 								snapshotdate = snapshot_sqlite_str,
 								type = 't',
-								vhdou = ou,
+								vhdou = VHDOU_VAL[ou],
 								threshold = float(total_el.find('total_points').text),
 								price = dec_odds(
 									coalesce(
@@ -608,30 +617,28 @@ class Downloader:
 			LOGGER.info('Queue holds %s queries. Starting execution...', sum(len(al) for al in query_queue.itervalues()))
 			for argslist in query_queue.itervalues():
 				for args in argslist:
-					if args[0] != AFTER_SQL1 and args[0] != AFTER_SQL2:
-						conn.execute(*args)
-					else:
-						odds_ids = conn.execute(args[0], args[1]).fetchall()
-						for odds_id in odds_ids:
-							conn.execute('''
-								update odds
-								set {col} = 1
-								where id = %s
-							'''.format(col = 'opening' 
-									if args[0] == AFTER_SQL1 
-									else 'latest'), [odds_id])
+					try:
+						if args[0] != AFTER_SQL1 and args[0] != AFTER_SQL2:
+							conn.execute(*args)
+						else:
+							odds_ids = [r[0] for r in conn.execute(args[0], args[1]).fetchall()]
+							for odds_id in odds_ids:
+								odds_update_sql = '''
+									update odds
+									set {col} = 1
+									where id = %s
+								'''.format(col = 'opening' 
+										if args[0] == AFTER_SQL1 
+										else 'latest')
+								conn.execute(odds_update_sql, [odds_id])
+					except Exception as e:
+						print 'Query that caused exception:'
+						print args[0]
+						print args[1]
+						print
+						raise
 				conn.commit()
 			LOGGER.info('Queue execution done.')
-			# Analyze if needed:
-			seconds_since_last_analysis = conn.execute("select strftime('%s', current_timestamp) - strftime('%s', analysis.last) from analysis").fetchone()
-			seconds_since_last_analysis = seconds_since_last_analysis[0] if seconds_since_last_analysis else None
-
-			LOGGER.info('Seconds since last ANALYZE: %s', seconds_since_last_analysis)
-			if seconds_since_last_analysis is None or seconds_since_last_analysis > SECONDS_BETWEEN_ANALYSES:
-				LOGGER.info('Running ANALYZE...')
-				conn.execute("analyze")
-				conn.execute("insert or replace into analysis values (1, current_timestamp)")
-				LOGGER.info('ANALYZE done')
 
 
 	def to_tree(self, url):
