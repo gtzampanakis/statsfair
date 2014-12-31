@@ -40,7 +40,11 @@ class Application:
 	@db
 	@webutil.template('layout.html', lookup)
 	def index(self, *args, **kwargs):
-		return { }
+		print cp.thread_data.conn
+		res = cp.thread_data.conn.execute('select * from gamesdenorm limit 5').fetchall()
+		return {
+				'res': (res),
+		}
 
 if __name__ == '__main__':
 	logging.basicConfig(level = logging.DEBUG)

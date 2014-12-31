@@ -1,4 +1,4 @@
-import datetime, collections, logging, os, re
+import datetime, collections, logging, os, re, dbapiutil
 
 LOGGER = logging.getLogger(__name__)
 
@@ -94,7 +94,7 @@ def get_conn(config_section):
 			pars_to_pass[key[5:]] = val
 	import importlib
 	db_module = importlib.import_module(elements['driver'])
-	conn = db_module.connect(**pars_to_pass)
+	conn = dbapiutil.connect(lambda: db_module.connect(**pars_to_pass))
 	return conn
 
 if __name__ == '__main__':
