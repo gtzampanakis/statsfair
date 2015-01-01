@@ -70,32 +70,6 @@ def template(path, lookup = None, encoding = 'utf-8'):
 		return t
 	return execute_template_
 
-def obj_to_json_string(obj, indent = None):
-	import json
-	return json.dumps(
-			obj,
-			sort_keys = True,
-			indent = indent,
-	)
-
-def rest(f):
-	def f_(self, *args, **kwargs):
-		import cherrypy
-		cherrypy.response.headers['content-type'] = 'application/json'
-		return obj_to_json_string(f(self, *args, **kwargs))
-	return f_
-
-def get_conn(config_section):
-	import cherrypy as cp
-	elements = cp.request.app.config[config_section]
-	pars_to_pass = { }
-	for key, val in elements.iteritems():
-		if key.startswith('conn.'):
-			pars_to_pass[key[5:]] = val
-	import importlib
-	db_module = importlib.import_module(elements['driver'])
-	conn = dbapiutil.connect(lambda: db_module.connect(**pars_to_pass))
-	return conn
 
 if __name__ == '__main__':
 	pass
