@@ -1,4 +1,5 @@
-import logging, os, urllib, random, numpy, collections, itertools, time, profile, json, contextlib
+import logging, os, urllib, random, numpy, collections, datetime
+import itertools, time, profile, json, contextlib, decimal
 import cherrypy as cp
 import mako.template as mt
 import mako.lookup as ml
@@ -12,6 +13,8 @@ LOGGER = logging.getLogger(__name__)
 
 ROOT_DIR = os.path.dirname(__file__)
 ENCODING = 'utf-8'
+
+INITIAL_BALANCE = 1000.
 
 lookup = ml.TemplateLookup(directories = [
 	os.path.join(ROOT_DIR, 'tmpl'),
@@ -32,7 +35,7 @@ def db(config_name):
 			t0 = time.time()
 			with webutil.get_conn(config_name) as conn:
 				LOGGER.info('Time taken for connecting to db: %.3f', time.time() - t0)
-				setattr(cp.thread_data, config_name, conn)
+				setattr(cp.thread_data, 'db:' + config_name, conn)
 				try:
 					return f(self, *args, **kwargs)
 				except cp.HTTPRedirect as r:
@@ -59,6 +62,7 @@ def session(config_name):
 			engine, Session = get_engine_and_session_class(config_name)
 			with session_scope(Session) as session:
 				setattr(cp.thread_data, config_name, session)
+				cp.thread_data.user = get_user()
 				try:
 					return f(self, *args, **kwargs)
 				except cp.HTTPRedirect as r:
@@ -78,10 +82,16 @@ def get_engine_and_session_class(config_section):
 	session_classes[config_section] = session_class
 	return engine, session_class
 
-class RegistrationException(Exception):
+class StatsfairException(Exception):
 	pass
 
-class LoginException(Exception):
+class RegistrationException(StatsfairException):
+	pass
+
+class LoginException(StatsfairException):
+	pass
+
+class BetException(StatsfairException):
 	pass
 
 def json_response(f):
@@ -103,15 +113,21 @@ def json_response(f):
 
 
 def create_user(username, password):
+	username = username.strip()
+	if len(username) <= 2:
+		raise RegistrationException('Username is too short.')
+	if len(password) <= 3:
+		raise RegistrationException('Password is too short.')
 	pwhash = pwd_context.encrypt(password)
 	user = sfapp.User(username = username, pwhash = pwhash)
 	cp.thread_data.sfapp.add(user)
 
+	initbalance = sfapp.InitBalance(user = user, balance = INITIAL_BALANCE)
+	cp.thread_data.sfapp.add(initbalance)
+
 
 def login(username, password):
-	# sql = '''select id, pwhash from users where lower(username) = lower(%s)'''
-	# pars = [username]
-	# row = cp.thread_data.sfapp.execute(sql, pars).fetchone()
+	username = username.strip()
 	user = cp.thread_data.sfapp.query(sfapp.User).filter_by(username = username).one()
 	if not pwd_context.verify(password, user.pwhash):
 		raise LoginException('Wrong password provided')
@@ -119,6 +135,57 @@ def login(username, password):
 
 def logout():
 	cp.session.pop('userid', 0)
+
+def printfoo(*args):
+	import pprint
+	print 'FOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO'
+	print pprint.pprint(*args)
+	print 'FOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO'
+	print
+
+def get_user():
+	userid = cp.session.get('userid')
+	if userid:
+		return cp.thread_data.sfapp.query(sfapp.User).filter_by(id = userid).one()
+
+
+def get_balance():
+	user = cp.thread_data.user
+	userid = user.id
+	initbalance = cp.thread_data.sfapp.query(sfapp.InitBalance).filter_by(userid = userid).one().balance
+	transactions_sum = sum(tr.amount for tr in user.transactions)
+	balance = initbalance + transactions_sum
+	printfoo(balance)
+	return balance
+
+
+def create_bet(oddsid, stake, duration):
+	balance = get_balance()
+
+	if balance < stake:
+		raise BetException('Insufficient balance for this bet.')
+
+	odds_instance = cp.thread_data.sfapp.query(sfapp.Odds).filter_by(id = oddsid).one()
+
+# Let's not do this... Let's do an automatic update just before someone submits
+	# a bet, and then this check will be made by the script that changes status
+	# to the bets.
+	# later_odds = (	cp.thread_data.sfapp.query(sfapp.Odds)
+	# 					.filter(sfapp.Odds.eventid == odds_instance.eventid)
+	# 					.filter(sfapp.Odds.periodnumber == odds_instance.periodnumber)
+	# 					.filter(sfapp.Odds.contestantnum == odds_instance.contestantnum)
+	# 					.filter(sfapp.Odds.type == odds_instance.type)
+	# 					.filter(sfapp.Odds.vhdou == odds_instance.vhdou)
+	# 					.filter(sfapp.Odds.snapshotdate > odds_instance.snapshotdate)
+	# ).order_by(sfapp.Odds.snapshotdate.desc()).first()
+
+	print odds_instance
+
+	bet = sfapp.Bet(userid = cp.thread_data.user.id, starting_oddsid = oddsid,
+						stake = stake, duration = duration, status = 'P',
+						placedat = datetime.datetime.utcnow())
+
+	cp.thread_data.sfapp.add(bet)
 
 
 class Application:
@@ -128,9 +195,8 @@ class Application:
 	@session('pinndb')
 	@webutil.template('layout.html', lookup)
 	def index(self, *args, **kwargs):
-		res = cp.thread_data.pinndb.execute('select * from gamesdenorm limit 5').fetchall()
 		return {
-				'res': (res),
+				'res': None,
 		}
 
 	@cp.expose
@@ -150,6 +216,13 @@ class Application:
 	def logout(self, *args, **kwargs):
 		return logout()
 
+	@cp.expose
+	@json_response
+	@session('sfapp')
+	def create_bet(self, *args, **kwargs):
+		return create_bet(
+				kwargs.get('oddsid'), decimal.Decimal(kwargs.get('stake')), kwargs.get('duration')
+		)
 
 if __name__ == '__main__':
 	logging.basicConfig(level = logging.DEBUG)
