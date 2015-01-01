@@ -1,9 +1,12 @@
-import logging, os, urllib, random, numpy, collections, itertools, time, profile, json
+import logging, os, urllib, random, numpy, collections, itertools, time, profile, json, contextlib
 import cherrypy as cp
 import mako.template as mt
 import mako.lookup as ml
+import sqlalchemy as sqla
+import sqlalchemy.orm as sqlo
 from passlib.apps import custom_app_context as pwd_context
 import webutil
+import sfapp
 
 LOGGER = logging.getLogger(__name__)
 
@@ -13,6 +16,9 @@ ENCODING = 'utf-8'
 lookup = ml.TemplateLookup(directories = [
 	os.path.join(ROOT_DIR, 'tmpl'),
 ])
+
+engines = { }
+session_classes = { }
 
 def html(f):
 	def f_(self, *args, **kwargs):
@@ -35,6 +41,43 @@ def db(config_name):
 		return f_
 	return to_return
 
+@contextlib.contextmanager
+def session_scope(Session):
+	session = Session()
+	try:
+		yield session
+		session.commit()
+	except:
+		session.rollback()
+		raise
+	finally:
+		session.close()
+
+def session(config_name):
+	def to_return(f):
+		def f_(self, *args, **kwargs):
+			engine, Session = get_engine_and_session_class(config_name)
+			with session_scope(Session) as session:
+				setattr(cp.thread_data, config_name, session)
+				try:
+					return f(self, *args, **kwargs)
+				except cp.HTTPRedirect as r:
+					session.commit()
+					raise
+		return f_
+	return to_return
+
+
+def get_engine_and_session_class(config_section):
+	if config_section in engines:
+		return engines[config_section], session_classes[config_section]
+	conn_string = cp.request.app.config.get(config_section).get('conn.string')
+	engine = sqla.create_engine(conn_string, echo = True)
+	engines[config_section] = engine
+	session_class = sqlo.sessionmaker(bind = engine)
+	session_classes[config_section] = session_class
+	return engine, session_class
+
 class RegistrationException(Exception):
 	pass
 
@@ -52,6 +95,7 @@ def json_response(f):
 					indent = 1,
 			)
 		except Exception as exc:
+			raise #TODO
 			return json.dumps({
 				'exc': {'type': str(type(exc)), 'msg' : str(exc)}
 			})
@@ -59,28 +103,19 @@ def json_response(f):
 
 
 def create_user(username, password):
-	sql = ''' select 1 from users where lower(username) = lower(%s) '''
-	if cp.thread_data.sfapp.execute(sql, [username]).fetchone():
-		raise RegistrationException('Username is already used')
-	sql = '''
-		insert into users
-		(username, pwhash)
-		values
-		(%s, %s)
-	'''
 	pwhash = pwd_context.encrypt(password)
-	pars = [username, pwhash]
-	cp.thread_data.sfapp.execute(sql, pars)
+	user = sfapp.User(username = username, pwhash = pwhash)
+	cp.thread_data.sfapp.add(user)
+
 
 def login(username, password):
-	sql = '''select id, pwhash from users where lower(username) = lower(%s)'''
-	pars = [username]
-	row = cp.thread_data.sfapp.execute(sql, pars).fetchone()
-	if row:
-		userid, pwhash = row
-	if not pwd_context.verify(password, pwhash):
+	# sql = '''select id, pwhash from users where lower(username) = lower(%s)'''
+	# pars = [username]
+	# row = cp.thread_data.sfapp.execute(sql, pars).fetchone()
+	user = cp.thread_data.sfapp.query(sfapp.User).filter_by(username = username).one()
+	if not pwd_context.verify(password, user.pwhash):
 		raise LoginException('Wrong password provided')
-	cp.session['userid'] = userid
+	cp.session['userid'] = user.id
 
 def logout():
 	cp.session.pop('userid', 0)
@@ -90,7 +125,7 @@ class Application:
 
 	@cp.expose
 	@html
-	@db('pinndb')
+	@session('pinndb')
 	@webutil.template('layout.html', lookup)
 	def index(self, *args, **kwargs):
 		res = cp.thread_data.pinndb.execute('select * from gamesdenorm limit 5').fetchall()
@@ -100,13 +135,13 @@ class Application:
 
 	@cp.expose
 	@json_response
-	@db('sfapp')
+	@session('sfapp')
 	def create_user(self, *args, **kwargs):
 		return create_user(kwargs.get('username'), kwargs.get('password'))
 
 	@cp.expose
 	@json_response
-	@db('sfapp')
+	@session('sfapp')
 	def login(self, *args, **kwargs):
 		return login(kwargs.get('username'), kwargs.get('password'))
 
