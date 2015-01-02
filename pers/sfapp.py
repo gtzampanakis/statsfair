@@ -65,6 +65,8 @@ class Odds(Base):
 class Bet(Base):
 	__tablename__ = 'bets'
 
+	PENDING = 'P'
+
 	id = Column(Integer, primary_key = True)
 	userid = Column(Integer, ForeignKey('users.id'), nullable = False, primary_key = True)
 	starting_oddsid = Column(INTEGER(unsigned = True), ForeignKey('pinn.odds.id'))

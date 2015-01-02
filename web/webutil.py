@@ -1,4 +1,4 @@
-import datetime, collections, logging, os, re, dbapiutil
+import datetime, collections, logging, os, re, dbapiutil, contextlib
 
 LOGGER = logging.getLogger(__name__)
 

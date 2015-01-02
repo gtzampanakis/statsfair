@@ -45,8 +45,8 @@ def db(config_name):
 	return to_return
 
 @contextlib.contextmanager
-def session_scope(Session):
-	session = Session()
+def session_scope(session_class):
+	session = session_class()
 	try:
 		yield session
 		session.commit()
@@ -182,7 +182,7 @@ def create_bet(oddsid, stake, duration):
 	print odds_instance
 
 	bet = sfapp.Bet(userid = cp.thread_data.user.id, starting_oddsid = oddsid,
-						stake = stake, duration = duration, status = 'P',
+						stake = stake, duration = duration, status = sfapp.Bet.PENDING,
 						placedat = datetime.datetime.utcnow())
 
 	transaction = sfapp.Transaction(userid = cp.thread_data.user.id,
@@ -233,7 +233,6 @@ if __name__ == '__main__':
 	logging.basicConfig(level = logging.DEBUG)
 	config_path = os.path.join(ROOT_DIR, 'config')
 	application = Application()
-	#application = ApplicationBeBackSoon()
 	cp.quickstart(
 			application,
 			'',

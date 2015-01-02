@@ -246,8 +246,8 @@ def get_conn_mysql():
 
 class Downloader:
 
-	def __init__(self):
-		pass
+	def __init__(self, update_interval):
+		self.update_interval = update_interval
 
 
 	def make_db(self):
@@ -647,7 +647,7 @@ class Downloader:
 				return etree.parse(urllib2.urlopen(url))
 			except IOError as err:
 				LOGGER.warning('Retrying later due to error: %s', err)
-				time.sleep(UPDATE_INTERVAL)
+				time.sleep(self.update_interval)
 				continue
 
 
@@ -669,7 +669,7 @@ class Downloader:
 			)
 
 			while True:
-				if time.time() > last_download_time + UPDATE_INTERVAL:
+				if time.time() > last_download_time + self.update_interval:
 					break
 				time.sleep(.05)
 
@@ -704,7 +704,7 @@ if __name__ == '__main__':
 	rotating_file_handler.setLevel(logging.DEBUG)
 	ROOT_LOGGER.addHandler(stream_handler)
 	ROOT_LOGGER.addHandler(rotating_file_handler)
-	downloader = Downloader()
+	downloader = Downloader(UPDATE_INTERVAL)
 	try:
 		downloader.start()
 	except Exception as exc:
