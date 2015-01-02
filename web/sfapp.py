@@ -97,7 +97,7 @@ class InitBalance(Base):
 
 	user = relationship('User')
 
-class Transactions(Base):
+class Transaction(Base):
 	__tablename__ = 'transactions'
 
 	id = Column(Integer, primary_key = True)

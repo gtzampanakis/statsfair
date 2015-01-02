@@ -185,7 +185,12 @@ def create_bet(oddsid, stake, duration):
 						stake = stake, duration = duration, status = 'P',
 						placedat = datetime.datetime.utcnow())
 
+	transaction = sfapp.Transaction(userid = cp.thread_data.user.id,
+									amount = -stake,
+									date = datetime.datetime.utcnow())
+
 	cp.thread_data.sfapp.add(bet)
+	cp.thread_data.sfapp.add(transaction)
 
 
 class Application:
