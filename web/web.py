@@ -7,7 +7,7 @@ import sqlalchemy as sqla
 import sqlalchemy.orm as sqlo
 from passlib.apps import custom_app_context as pwd_context
 import webutil
-import sfapp
+import statsfair.pers.sfapp as sfapp
 
 LOGGER = logging.getLogger(__name__)
 
@@ -165,7 +165,10 @@ def create_bet(oddsid, stake, duration):
 	if balance < stake:
 		raise BetException('Insufficient balance for this bet.')
 
-	odds_instance = cp.thread_data.sfapp.query(sfapp.Odds).filter_by(id = oddsid).one()
+	odds_instance = (cp.thread_data.sfapp.
+						query(sfapp.Odds).join(sfapp.Snapshot)
+						.filter(sfapp.Odds.id == oddsid)
+	).one()
 
 # Let's not do this... Let's do an automatic update just before someone submits
 	# a bet, and then this check will be made by the script that changes status
@@ -187,7 +190,9 @@ def create_bet(oddsid, stake, duration):
 
 	transaction = sfapp.Transaction(userid = cp.thread_data.user.id,
 									amount = -stake,
-									date = datetime.datetime.utcnow())
+									date = datetime.datetime.utcnow(),
+									description = sfapp.Transaction.BET_SUBMIT_STAKE,
+	)
 
 	cp.thread_data.sfapp.add(bet)
 	cp.thread_data.sfapp.add(transaction)

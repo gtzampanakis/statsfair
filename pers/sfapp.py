@@ -39,8 +39,18 @@ class Participant(Base):
 	name = Column(String)
 	pitcher = Column(String)
 
-	event = relationship('Event', backref = backref('participants', order_by = id))
+	event = relationship(Event, backref = backref('participants', order_by = id))
 
+class Snapshot(Base):
+	__tablename__ = 'snapshots'
+	__table_args__ = {'schema' : 'pinn'}
+
+	id = Column(Integer, primary_key = True)
+	eventid = Column(Integer, ForeignKey('pinn.events.id'))
+	periodnumber = Column(Integer)
+	date = Column(DateTime)
+	mlmax = Column(Integer)
+	event = relationship(Event, backref = backref('snapshots'))
 
 class Odds(Base):
 	__tablename__ = 'odds'
@@ -54,11 +64,14 @@ class Odds(Base):
 	vhdou = Column(String)
 	price = Column(Float)
 
-	event = relationship('Event', backref = backref('odds_list'))
-	participant = relationship('Participant', backref = backref('odds_list'))
+	event = relationship(Event, backref = backref('odds_list'))
+	participant = relationship(Participant, backref = backref('odds_list'))
+	snapshot = relationship(Snapshot, backref = backref('odds_list'))
 
 	__table_args__ = (ForeignKeyConstraint([eventid, contestantnum], 
 							[Participant.eventid, Participant.contestantnum]), 
+						ForeignKeyConstraint([eventid, periodnumber, snapshotdate], 
+						[Snapshot.eventid, Snapshot.periodnumber, Snapshot.date]),
 							{'schema' : 'pinn'})
 
 
@@ -66,6 +79,8 @@ class Bet(Base):
 	__tablename__ = 'bets'
 
 	PENDING = 'P'
+	STARTED = 'S'
+	SETTLED = 'T'
 
 	id = Column(Integer, primary_key = True)
 	userid = Column(Integer, ForeignKey('users.id'), nullable = False, primary_key = True)
@@ -81,10 +96,10 @@ class Bet(Base):
 	recupdatedat = Column(DateTime, default = func.utc_timestamp(), 
 										onupdate = func.utc_timestamp())
 
-	user = relationship('User')
-	starting_odds_inst = relationship('Odds', foreign_keys = starting_oddsid, 
+	user = relationship(User)
+	starting_odds_inst = relationship(Odds, foreign_keys = starting_oddsid, 
 										backref = backref('bets_starting', order_by = id))
-	settled_odds_inst = relationship('Odds',  foreign_keys = settled_oddsid, 
+	settled_odds_inst = relationship(Odds,  foreign_keys = settled_oddsid, 
 										backref = backref('bets_settled', order_by = id))
 
 class InitBalance(Base):
@@ -97,21 +112,27 @@ class InitBalance(Base):
 	recupdatedat = Column(DateTime, default = func.utc_timestamp(), 
 										onupdate = func.utc_timestamp())
 
-	user = relationship('User')
+	user = relationship(User)
 
 class Transaction(Base):
 	__tablename__ = 'transactions'
+
+	EXCESS_STAKE_CORRECTION = 'EXCESS_STAKE_CORRECTION'
+	BET_SUBMIT_STAKE = 'BET_SUBMIT_STAKE'
+	BET_SETTLE_RETURN_STAKE = 'BET_SETTLE_RETURN_STAKE'
+	BET_SETTLE_YIELD = 'BET_SETTLE_YIELD'
 
 	id = Column(Integer, primary_key = True)
 	userid = Column(Integer, ForeignKey('users.id'), nullable = False)
 	amount = Column(Numeric(8, 2), nullable = False)
 	date = Column(DateTime, nullable = False)
+	description = Column(String(100))
 
 	reccreatedat = Column(DateTime, default = func.utc_timestamp())
 	recupdatedat = Column(DateTime, default = func.utc_timestamp(), 
 										onupdate = func.utc_timestamp())
 
-	user = relationship('User', backref = backref('transactions'))
+	user = relationship(User, backref = backref('transactions'))
 
 
 

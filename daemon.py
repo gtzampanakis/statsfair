@@ -1,4 +1,4 @@
-import os, logging, logging.handlers, time, uuid
+import os, logging, logging.handlers, time, uuid, random
 import socket, sys, platform
 
 import platform
@@ -49,7 +49,9 @@ class Daemon:
 				lock_socket = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
 			try:
 				if WINDOWS:
-					lock_socket.bind(('localhost', 8321))
+					port_to_use = random.randint(30000, 63000)
+					LOGGER.info('Binding to port %s', port_to_use)
+					lock_socket.bind(('localhost', port_to_use))
 				else:
 					lock_id = str(uuid.uuid1().hex)
 					lock_socket.bind('\0' + lock_id)
