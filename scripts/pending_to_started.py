@@ -60,7 +60,7 @@ def pending_to_started():
 			diff = (datetime.datetime.utcnow()
 						- pending_bet.placedat).total_seconds()
 			LOGGER.info('Diff is %s seconds', diff)
-			if diff >= sfutil.PENDING_LIFESPAN:
+			if diff >= sfutil.PENDING_LIFESPAN + sfutil.SAFETY_WAIT_PERIOD:
 				LOGGER.info('Changing bet %s to STARTED', pending_bet)
 				pending_bet.status = sfapp.Bet.STARTED
 		

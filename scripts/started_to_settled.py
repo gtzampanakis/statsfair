@@ -61,7 +61,7 @@ def started_to_settled():
 			LOGGER.info('Now: %s, evdate: %s', datetime.datetime.utcnow(), 
 									started_bet.starting_odds_inst.event.date)
 			LOGGER.info('Diff is %s seconds', diff)
-			if diff >= sfutil.AFTER_EVENT_START_WAIT_PERIOD:
+			if diff >= sfutil.SAFETY_WAIT_PERIOD:
 				LOGGER.info('Changing bet %s to SETTLED', started_bet)
 				started_bet.status = sfapp.Bet.SETTLED
 				start_price = started_bet.starting_odds_inst.price

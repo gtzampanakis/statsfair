@@ -1,7 +1,7 @@
 import os, contextlib
 
 PENDING_LIFESPAN = 300
-AFTER_EVENT_START_WAIT_PERIOD = 300
+SAFETY_WAIT_PERIOD = 300
 
 def get_web_config():
 	import cherrypy.lib.reprconf
