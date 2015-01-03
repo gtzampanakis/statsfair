@@ -19,7 +19,7 @@ def started_to_settled():
 		for started_bet in started_rows:
 			if started_bet.settled_odds_inst is None:
 				started_bet.settled_odds_inst = started_bet.starting_odds_inst
-			started_odds_instance = started_bet.starting_odds_inst
+			started_odds_instance = started_bet.settled_odds_inst
 			LOGGER.info('Handling started odds with id: %s', started_odds_instance.id)
 # Find candidate odds records, sorted by snapshotdate descending.
 			candidate_odds = (
@@ -39,12 +39,8 @@ def started_to_settled():
 			)
 			for candidate_odd in candidate_odds:
 				LOGGER.info('Candidate odd: %s', candidate_odd.id)
-				diff_in_seconds = (candidate_odd.snapshotdate 
-									- started_bet.placedat).total_seconds()
-				LOGGER.info('Difference is %s seconds', diff_in_seconds)
-				if diff_in_seconds < sfutil.AFTER_EVENT_START_WAIT_PERIOD:
-					LOGGER.info('New settled_oddsid for bet %s', started_bet)
-					started_bet.settled_odds_inst = candidate_odd
+				LOGGER.info('New settled_oddsid for bet %s', started_bet)
+				started_bet.settled_odds_inst = candidate_odd
 			# The settled_odds_inst has possibly changed, so the stakes might
 			# need to be changed as well.
 			if started_bet.settled_odds_inst:
