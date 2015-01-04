@@ -191,11 +191,11 @@ def get_available():
 	evdate,
 	sporttype,
 	league,
-	hprice,
+	round(hprice, 3),
 	pahname,
-	dprice,
+	round(dprice, 3),
 	pavname,
-	vprice,
+	round(vprice, 3),
 	betlimit,
 	hid,
 	did,
@@ -205,12 +205,23 @@ def get_available():
 	and bettype = 'm' 
 	and evdate > current_timestamp
 	and latest = 1
+	and pahname not like '%%.5 Set%%'
 	order by
 	evdate, sporttype, league,
 	pahname, pavname, evid
 	limit 20000
 	'''
-	available = conn.execute(sql).fetchall()
+	raw = conn.execute(sql).fetchall()
+
+	available = [ ]
+	
+	for raw_row in raw:
+		available_row = [ ]
+		for raw_col in raw_row:
+			if raw_col is None:
+				raw_col = ''
+			available_row.append(raw_col)
+		available.append(available_row)
 
 	return available
 		
