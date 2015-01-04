@@ -62,6 +62,7 @@ def session(config_name):
 			engine, Session = get_engine_and_session_class(config_name)
 			with session_scope(Session) as session:
 				setattr(cp.thread_data, config_name, session)
+				setattr(cp.thread_data, 'engine_' + config_name, engine)
 				cp.thread_data.user = get_user()
 				try:
 					return f(self, *args, **kwargs)
@@ -170,20 +171,6 @@ def create_bet(oddsid, stake, duration):
 						.filter(sfapp.Odds.id == oddsid)
 	).one()
 
-# Let's not do this... Let's do an automatic update just before someone submits
-	# a bet, and then this check will be made by the script that changes status
-	# to the bets.
-	# later_odds = (	cp.thread_data.sfapp.query(sfapp.Odds)
-	# 					.filter(sfapp.Odds.eventid == odds_instance.eventid)
-	# 					.filter(sfapp.Odds.periodnumber == odds_instance.periodnumber)
-	# 					.filter(sfapp.Odds.contestantnum == odds_instance.contestantnum)
-	# 					.filter(sfapp.Odds.type == odds_instance.type)
-	# 					.filter(sfapp.Odds.vhdou == odds_instance.vhdou)
-	# 					.filter(sfapp.Odds.snapshotdate > odds_instance.snapshotdate)
-	# ).order_by(sfapp.Odds.snapshotdate.desc()).first()
-
-	print odds_instance
-
 	bet = sfapp.Bet(userid = cp.thread_data.user.id, starting_oddsid = oddsid,
 						stake = stake, duration = duration, status = sfapp.Bet.PENDING,
 						placedat = datetime.datetime.utcnow())
@@ -197,16 +184,47 @@ def create_bet(oddsid, stake, duration):
 	cp.thread_data.sfapp.add(bet)
 	cp.thread_data.sfapp.add(transaction)
 
+def get_available():
+	conn = cp.thread_data.engine_sfapp.connect()
+	sql = '''
+	select
+	evdate,
+	sporttype,
+	league,
+	hprice,
+	pahname,
+	dprice,
+	pavname,
+	vprice,
+	betlimit,
+	hid,
+	did,
+	vid
+	from pinn.gamesdenorm where 
+	penumber = 0
+	and bettype = 'm' 
+	and evdate > current_timestamp
+	and latest = 1
+	order by
+	evdate, sporttype, league,
+	pahname, pavname, evid
+	limit 20000
+	'''
+	available = conn.execute(sql).fetchall()
+
+	return available
+		
 
 class Application:
 
 	@cp.expose
 	@html
-	@session('pinndb')
-	@webutil.template('layout.html', lookup)
+	@session('sfapp')
+	@webutil.template('index.html', lookup)
 	def index(self, *args, **kwargs):
+		available = get_available()
 		return {
-				'res': None,
+				'available' : available,
 		}
 
 	@cp.expose

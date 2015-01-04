@@ -353,7 +353,8 @@ class Downloader:
 							when 't' then sn.totalmax
 			end) as betlimit,
 			odh.snapshotdate as snapshotdate,
-			odh.id as id,
+			odh.opening,
+			odh.latest,
 			odh.id as hid,
 			odd.id as did,
 			odv.id as vid

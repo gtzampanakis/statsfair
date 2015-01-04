@@ -1,0 +1,40 @@
+<%inherit file="layout.html"/>
+
+<%block name="middle_content">
+
+<table class="odds_table table table-striped table-bordered table-condensed">
+	<thead>
+		<tr>
+			<th>Event Date</th>
+			<th>Sport</th>
+			<th>League</th>
+			<th></th>
+			<th>Home</th>
+			<th>Draw</th>
+			<th>Away</th>
+			<th></th>
+			<th>Bet Limit</th>
+		</tr>
+	</thead>
+	<tbody>
+		% for row in available:
+			<tr>
+		% for col in row[:9]:
+			<td>${col|h}</td>
+		% endfor
+			</tr>
+		% endfor
+	</tbody>
+</table>
+
+
+</%block>
+
+<%block name="link_tags">
+<link href="/css/jquery.dynatable.css" rel="stylesheet">
+</%block>
+
+<%block name="script_tags">
+<script src="/js/jquery.dynatable.js"></script>
+<script src="/js/common.js"></script>
+</%block>
