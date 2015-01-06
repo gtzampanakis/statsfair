@@ -12,3 +12,7 @@
 
 .odds_table td.number{
 }
+
+.error {
+	color: red;
+}

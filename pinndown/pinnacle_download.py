@@ -5,8 +5,6 @@ import commonlib as cl
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 STATIC_URL = 'http://xml.pinnaclesports.com/pinnacleFeed.aspx?'
-# STATIC_URL = 'file:sample.xml'
-SECONDS_BETWEEN_ANALYSES = 7 * 24 * 60 * 60 # 7 days
 
 ERROR_DUPLICATE_KEY_NAME = 1061
 

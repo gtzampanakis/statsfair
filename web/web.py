@@ -8,6 +8,7 @@ import sqlalchemy.orm as sqlo
 from passlib.apps import custom_app_context as pwd_context
 import webutil
 import statsfair.pers.sfapp as sfapp
+import statsfair.util as sfutil
 
 LOGGER = logging.getLogger(__name__)
 
@@ -160,7 +161,7 @@ def get_balance():
 	return balance
 
 
-def create_bet(oddsid, stake, duration):
+def submit_bet(oddsid, stake, duration):
 	balance = get_balance()
 
 	if balance < stake:
@@ -192,7 +193,7 @@ AVAILABLE_BETS_COLUMN = [
 ]
 AvailableBet = collections.namedtuple('AvailableBet', AVAILABLE_BETS_COLUMN)
 
-def get_available(extra_filter = None):
+def get_available(only_latest = True, extra_filter = None):
 	conn = cp.thread_data.engine_sfapp.connect()
 	sql = '''
 	select
@@ -212,7 +213,7 @@ def get_available(extra_filter = None):
 	penumber = 0
 	and bettype = 'm' 
 	and evdate > utc_timestamp
-	and latest = 1
+	and {latest} = 1
 	and sporttype <> 'E Sports'
 	and pahname not like '%%.5 Set%%'
 	and ({extra_filter})
@@ -220,7 +221,8 @@ def get_available(extra_filter = None):
 	evdate, sporttype, league,
 	pahname, pavname, evid
 	limit 20000
-	'''.format(extra_filter = extra_filter or '1=1')
+	'''.format(extra_filter = extra_filter or '1=1',
+					latest = 'latest' if only_latest else 1)
 	raw = conn.execute(sql).fetchall()
 
 	available = [ ]
@@ -250,18 +252,28 @@ class Application:
 	@webutil.template('stakes.html', lookup)
 	def stakes(self, *args, **kwargs):
 		oddsid = kwargs.get('oddsid')
+		error = ''
+
+		candidate_odds = sfutil.get_candidate_odds(oddsid)
+
+		for odds_instance in candidate_odds:
+			oddsid = odds_instance.id
+
 		extra_filter = str(oddsid) + ' in (hid, did, vid)'
-		available = get_available(extra_filter)
+		available = get_available(False, extra_filter)
 		to_return = {
 				'available' : available,
+				'selected' : '',
+				'selected_oddsid': oddsid,
 		}
 		if len(available) == 0:
-			pass # TODO
+			error = 'No records found. Maybe the event has started.'
 		else:
 			row = available[0]
 			for id_name, price_name in zip(['hid', 'did', 'vid'], ['hprice', 'dprice', 'vprice']):
-				if oddsid == str(getattr(row, id_name)):
+				if str(oddsid) == str(getattr(row, id_name)):
 					to_return['selected'] = price_name
+		to_return['error'] = error
 		return to_return
 
 
@@ -285,9 +297,11 @@ class Application:
 	@cp.expose
 	@json_response
 	@session('sfapp')
-	def create_bet(self, *args, **kwargs):
-		return create_bet(
-				kwargs.get('oddsid'), decimal.Decimal(kwargs.get('stake')), kwargs.get('duration')
+	def submit_bet(self, *args, **kwargs):
+		return submit_bet(
+				kwargs.get('oddsid'), 
+				decimal.Decimal(kwargs.get('stake')), 
+				kwargs.get('duration')
 		)
 
 if __name__ == '__main__':

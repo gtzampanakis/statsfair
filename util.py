@@ -1,7 +1,9 @@
-import os, contextlib
+import os, contextlib, logging
 
-PENDING_LIFESPAN = 300
-SAFETY_WAIT_PERIOD = 300
+LOGGER = logging.getLogger()
+
+PENDING_LIFESPAN = 80
+SAFETY_WAIT_PERIOD = 80
 
 def get_web_config():
 	import cherrypy.lib.reprconf
@@ -33,3 +35,28 @@ def get_session(config_section):
 	engines[config_section] = engine
 	session_classes[config_section] = session_class
 	return session_scope(session_class)
+
+def get_candidate_odds(oddsid):
+	import cherrypy as cp
+	import statsfair.pers.sfapp as sfapp
+
+	odds_instance = cp.thread_data.sfapp.query(sfapp.Odds).filter_by(id = oddsid).one()
+	LOGGER.debug('odds_instance: %s', odds_instance)
+
+	candidate_odds = (
+		cp.thread_data.sfapp
+		.query(sfapp.Odds)
+		.join(sfapp.Snapshot)
+		.join(sfapp.Event)
+		.filter(sfapp.Odds.eventid == odds_instance.eventid)
+		.filter(sfapp.Odds.periodnumber == odds_instance.periodnumber)
+		.filter(sfapp.Odds.contestantnum == odds_instance.contestantnum)
+		.filter(sfapp.Odds.type == odds_instance.type)
+		.filter(sfapp.Odds.vhdou == odds_instance.vhdou)
+		.filter(sfapp.Odds.snapshotdate > odds_instance.snapshotdate)
+		.filter(sfapp.Odds.snapshotdate <= sfapp.Event.date)
+		.filter(sfapp.Snapshot.mlmax > 0)
+		.order_by(sfapp.Odds.snapshotdate)
+	)
+
+	return candidate_odds
