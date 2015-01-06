@@ -2,5 +2,13 @@
 	font-size: 10pt;
 }
 
+.price {
+	font-weight: 700;
+}
+
+.price_selected {
+	font-weight: 900;
+}
+
 .odds_table td.number{
 }

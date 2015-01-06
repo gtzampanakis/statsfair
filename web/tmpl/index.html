@@ -32,15 +32,18 @@ import statsfair.web.web as web
 			]:
 				class_name = 'number'
 			if coli == web.AVAILABLE_BETS_COLUMN.index('hprice'):
-				href = 'stakes?oid=' + str(row.hid)
+				href = 'stakes?oddsid=' + str(row.hid)
+				class_name += ' price'
 			if coli == web.AVAILABLE_BETS_COLUMN.index('dprice'):
-				href = '/stakes?oid=' + str(row.did)
+				href = '/stakes?oddsid=' + str(row.did)
+				class_name += ' price'
 			if coli == web.AVAILABLE_BETS_COLUMN.index('vprice'):
-				href = 'stakes?oid=' + str(row.vid)
+				href = 'stakes?oddsid=' + str(row.vid)
+				class_name += ' price'
 			%>
 			<td class="${class_name}">
 			% if href != '':
-				<a href="${href}">${col or ''|h}</a>
+				<a class="price" href="${href}">${col or ''|h}</a>
 			% else:
 				${col or ''|h}
 			%endif
@@ -56,14 +59,12 @@ import statsfair.web.web as web
 </%block>
 
 <%block name="link_tags">
-## <link href="//cdn.datatables.net/1.10.4/css/jquery.dataTables.min.css" rel="stylesheet">
 <link 
 	href="//cdn.datatables.net/plug-ins/3cfcc339e89/integration/bootstrap/3/dataTables.bootstrap.css" rel="stylesheet">
-<link href="/css/common.css" rel="stylesheet">
 </%block>
 
 <%block name="script_tags">
 <script src="//cdn.datatables.net/1.10.4/js/jquery.dataTables.min.js"></script>
 <script src="//cdn.datatables.net/plug-ins/3cfcc339e89/integration/bootstrap/3/dataTables.bootstrap.js"></script>
-<script src="/js/common.js"></script>
+<script src="/js/index.js"></script>
 </%block>

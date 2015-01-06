@@ -192,7 +192,7 @@ AVAILABLE_BETS_COLUMN = [
 ]
 AvailableBet = collections.namedtuple('AvailableBet', AVAILABLE_BETS_COLUMN)
 
-def get_available():
+def get_available(extra_filter = None):
 	conn = cp.thread_data.engine_sfapp.connect()
 	sql = '''
 	select
@@ -215,11 +215,12 @@ def get_available():
 	and latest = 1
 	and sporttype <> 'E Sports'
 	and pahname not like '%%.5 Set%%'
+	and ({extra_filter})
 	order by
 	evdate, sporttype, league,
 	pahname, pavname, evid
 	limit 20000
-	'''
+	'''.format(extra_filter = extra_filter or '1=1')
 	raw = conn.execute(sql).fetchall()
 
 	available = [ ]
@@ -242,6 +243,27 @@ class Application:
 		return {
 				'available' : available,
 		}
+
+	@cp.expose
+	@html
+	@session('sfapp')
+	@webutil.template('stakes.html', lookup)
+	def stakes(self, *args, **kwargs):
+		oddsid = kwargs.get('oddsid')
+		extra_filter = str(oddsid) + ' in (hid, did, vid)'
+		available = get_available(extra_filter)
+		to_return = {
+				'available' : available,
+		}
+		if len(available) == 0:
+			pass # TODO
+		else:
+			row = available[0]
+			for id_name, price_name in zip(['hid', 'did', 'vid'], ['hprice', 'dprice', 'vprice']):
+				if oddsid == str(getattr(row, id_name)):
+					to_return['selected'] = price_name
+		return to_return
+
 
 	@cp.expose
 	@json_response
