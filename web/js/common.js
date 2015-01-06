@@ -1,7 +1,6 @@
 function parseTables() {
-	$('.odds_table').dynatable({
-		table: {
-		}
+	// });
+	$('.odds_table').DataTable({
 	});
 }
 

@@ -1,4 +1,4 @@
-import logging, os, urllib, random, numpy, collections, datetime
+import logging, os, urllib, random, numpy, collections, datetime, collections
 import itertools, time, profile, json, contextlib, decimal
 import cherrypy as cp
 import mako.template as mt
@@ -184,6 +184,14 @@ def create_bet(oddsid, stake, duration):
 	cp.thread_data.sfapp.add(bet)
 	cp.thread_data.sfapp.add(transaction)
 
+AVAILABLE_BETS_COLUMN = [
+		'evdate', 'sporttype', 'league',
+		'hprice', 'pahname', 'dprice',
+		'pavname', 'vprice', 'betlimit',
+		'hid', 'did', 'vid'
+]
+AvailableBet = collections.namedtuple('AvailableBet', AVAILABLE_BETS_COLUMN)
+
 def get_available():
 	conn = cp.thread_data.engine_sfapp.connect()
 	sql = '''
@@ -191,11 +199,11 @@ def get_available():
 	evdate,
 	sporttype,
 	league,
-	round(hprice, 3),
+	round(hprice, 3) hprice,
 	pahname,
-	round(dprice, 3),
+	round(dprice, 3) dprice,
 	pavname,
-	round(vprice, 3),
+	round(vprice, 3) vprice,
 	betlimit,
 	hid,
 	did,
@@ -203,8 +211,9 @@ def get_available():
 	from pinn.gamesdenorm where 
 	penumber = 0
 	and bettype = 'm' 
-	and evdate > current_timestamp
+	and evdate > utc_timestamp
 	and latest = 1
+	and sporttype <> 'E Sports'
 	and pahname not like '%%.5 Set%%'
 	order by
 	evdate, sporttype, league,
@@ -216,11 +225,7 @@ def get_available():
 	available = [ ]
 	
 	for raw_row in raw:
-		available_row = [ ]
-		for raw_col in raw_row:
-			if raw_col is None:
-				raw_col = ''
-			available_row.append(raw_col)
+		available_row = AvailableBet(*raw_row)
 		available.append(available_row)
 
 	return available

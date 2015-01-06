@@ -1,10 +1,13 @@
 <%inherit file="layout.html"/>
+<%!
+import statsfair.web.web as web
+%>
 
 <%block name="middle_content">
 
 <table class="odds_table table table-striped table-bordered table-condensed">
 	<thead>
-		<th>EventDate</th>
+		<th>Event Date</th>
 		<th>Sport</th>
 		<th>League</th>
 		<th></th>
@@ -12,13 +15,37 @@
 		<th>Draw</th>
 		<th>Away</th>
 		<th></th>
-		<th>BetLimit</th>
+		<th>Bet Limit</th>
 	</thead>
 	<tbody>
 		% for row in available:
 			<tr>
-		% for col in row[:9]:
-			<td>${col|h}</td>
+		% for coli, col in enumerate(row[:9]):
+			<%
+			class_name = ''
+			href = ''
+			if coli in [
+					web.AVAILABLE_BETS_COLUMN.index('hprice'),
+					web.AVAILABLE_BETS_COLUMN.index('dprice'),
+					web.AVAILABLE_BETS_COLUMN.index('vprice'),
+					web.AVAILABLE_BETS_COLUMN.index('betlimit'),
+			]:
+				class_name = 'number'
+			if coli == web.AVAILABLE_BETS_COLUMN.index('hprice'):
+				href = 'stakes?oid=' + str(row.hid)
+			if coli == web.AVAILABLE_BETS_COLUMN.index('dprice'):
+				href = '/stakes?oid=' + str(row.did)
+			if coli == web.AVAILABLE_BETS_COLUMN.index('vprice'):
+				href = 'stakes?oid=' + str(row.vid)
+			%>
+			<td class="${class_name}">
+			% if href != '':
+				<a href="${href}">${col or ''|h}</a>
+			% else:
+				${col or ''|h}
+			%endif
+				
+			</td>
 		% endfor
 			</tr>
 		% endfor
@@ -29,11 +56,14 @@
 </%block>
 
 <%block name="link_tags">
-<link href="/css/jquery.dynatable.css" rel="stylesheet">
+## <link href="//cdn.datatables.net/1.10.4/css/jquery.dataTables.min.css" rel="stylesheet">
+<link 
+	href="//cdn.datatables.net/plug-ins/3cfcc339e89/integration/bootstrap/3/dataTables.bootstrap.css" rel="stylesheet">
 <link href="/css/common.css" rel="stylesheet">
 </%block>
 
 <%block name="script_tags">
-<script src="/js/jquery.dynatable.js"></script>
+<script src="//cdn.datatables.net/1.10.4/js/jquery.dataTables.min.js"></script>
+<script src="//cdn.datatables.net/plug-ins/3cfcc339e89/integration/bootstrap/3/dataTables.bootstrap.js"></script>
 <script src="/js/common.js"></script>
 </%block>
