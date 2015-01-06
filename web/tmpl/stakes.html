@@ -1,0 +1,79 @@
+<%inherit file="layout.html"/>
+<%!
+import statsfair.web.web as web
+%>
+
+<%block name="middle_content">
+
+<table class="odds_table table table-striped table-bordered table-condensed">
+	<thead>
+		<th>Event Date</th>
+		<th>Sport</th>
+		<th>League</th>
+		<th></th>
+		<th>Home</th>
+		<th>Draw</th>
+		<th>Away</th>
+		<th></th>
+		<th>Bet Limit</th>
+	</thead>
+	<tbody>
+		% for row in available:
+			<tr>
+		% for coli, col in enumerate(row[:9]):
+			<%
+			col_name = web.AVAILABLE_BETS_COLUMN[coli]
+			class_name = ''
+			href = ''
+			if coli in [
+					web.AVAILABLE_BETS_COLUMN.index('hprice'),
+					web.AVAILABLE_BETS_COLUMN.index('dprice'),
+					web.AVAILABLE_BETS_COLUMN.index('vprice'),
+					web.AVAILABLE_BETS_COLUMN.index('betlimit'),
+			]:
+				class_name = 'number'
+			if coli == web.AVAILABLE_BETS_COLUMN.index('hprice'):
+				href = 'stakes?oddsid=' + str(row.hid)
+				class_name += ' price'
+			if coli == web.AVAILABLE_BETS_COLUMN.index('dprice'):
+				href = '/stakes?oddsid=' + str(row.did)
+				class_name += ' price'
+			if coli == web.AVAILABLE_BETS_COLUMN.index('vprice'):
+				href = 'stakes?oddsid=' + str(row.vid)
+				class_name += ' price'
+			%>
+			<td class="${class_name}">
+			% if href != '':
+			<a class="${'price' if col_name != selected else 'price_selected'}" 
+				href="${href}">${col or ''|h}</a>
+			% else:
+				${col or ''|h}
+			%endif
+				
+			</td>
+		% endfor
+			</tr>
+		% endfor
+	</tbody>
+</table>
+
+<div class="error">${error|h}</div>
+
+<form method="post" action="submit_bet">
+	<label>Stake:
+		<input 
+			name="stake" 
+			type="number"
+			class="form-control" 
+			placeholder="Enter stake">
+	</label>
+	<input name="oddsid" type="hidden" value="${selected_oddsid}">
+</form>
+
+</%block>
+
+<%block name="link_tags">
+</%block>
+
+<%block name="script_tags">
+</%block>
