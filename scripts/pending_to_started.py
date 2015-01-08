@@ -7,13 +7,14 @@ import statsfair.pers.sfapp as sfapp
 LOGGER = logging.getLogger(__name__)
 ROOT_DIR = os.path.dirname(__file__)
 
-def pending_to_started():
+def pending_to_started(date_threshold):
 	LOGGER.info('Start: pending_to_started')
 	with sfutil.get_session('sfapp') as sfapp_sess:
 		pending_rows = (
 					sfapp_sess
 					.query(sfapp.Bet)
 					.filter(sfapp.Bet.status == sfapp.Bet.PENDING)
+					.filter(sfapp.Bet.placedat <= date_threshold)
 					.order_by(sfapp.Bet.id)
 		)
 		for pending_bet in pending_rows:
@@ -33,16 +34,13 @@ def pending_to_started():
 				.filter(sfapp.Odds.snapshotdate > pending_odds_instance.snapshotdate)
 				.filter(sfapp.Odds.snapshotdate <= sfapp.Event.date)
 				.filter(sfapp.Snapshot.mlmax > 0)
+				.filter(sfapp.Snapshot.systemdate <= date_threshold)
 				.order_by(sfapp.Odds.snapshotdate)
 			)
 			for candidate_odd in candidate_odds:
 				LOGGER.info('Candidate odd: %s', candidate_odd.id)
-				diff_in_seconds = (candidate_odd.snapshotdate 
-									- pending_bet.placedat).total_seconds()
-				LOGGER.info('Difference is %s seconds', diff_in_seconds)
-				if diff_in_seconds < sfutil.PENDING_LIFESPAN:
-					LOGGER.info('New starting_odds_inst for bet %s', pending_bet)
-					pending_bet.starting_odds_inst = candidate_odd
+				LOGGER.info('New starting_odds_inst for bet %s', pending_bet)
+				pending_bet.starting_odds_inst = candidate_odd
 			# The starting_odds_inst has possibly changed, so the stakes might
 			# need to be changed as well.
 			excess_stake = pending_bet.stake - pending_bet.starting_odds_inst.snapshot.mlmax
@@ -57,12 +55,8 @@ def pending_to_started():
 						description = sfapp.Transaction.EXCESS_STAKE_CORRECTION
 				)
 				sfapp_sess.add(transaction)
-			diff = (datetime.datetime.utcnow()
-						- pending_bet.placedat).total_seconds()
-			LOGGER.info('Diff is %s seconds', diff)
-			if diff >= sfutil.PENDING_LIFESPAN + sfutil.SAFETY_WAIT_PERIOD:
-				LOGGER.info('Changing bet %s to STARTED', pending_bet)
-				pending_bet.status = sfapp.Bet.STARTED
+			LOGGER.info('Changing bet %s to STARTED', pending_bet)
+			pending_bet.status = sfapp.Bet.STARTED
 		
 	LOGGER.info('End: pending_to_started')
 

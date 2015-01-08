@@ -158,7 +158,9 @@ def dec_odds(amer_odds):
 	if amer_odds is None:
 		return None
 	amer_odds = float(amer_odds)
-	if amer_odds > 0:
+	if amer_odds == 0:
+		return -1
+	elif amer_odds > 0:
 		return (100 + amer_odds) / 100.
 	else:
 		return 100 / (-amer_odds) + 1
@@ -244,8 +246,9 @@ def get_conn_mysql():
 
 class Downloader:
 
-	def __init__(self, update_interval):
+	def __init__(self, update_interval, call_when_update_done = None):
 		self.update_interval = update_interval
+		self.call_when_update_done = call_when_update_done
 
 
 	def make_db(self):
@@ -282,6 +285,7 @@ class Downloader:
 				eventid int unsigned not null,
 				periodnumber tinyint unsigned,
 				date datetime not null,
+				systemdate datetime not null,
 				status char(1) character set latin1,
 				upd varchar(20),
 				spreadmax mediumint unsigned,
@@ -421,8 +425,10 @@ class Downloader:
 						raise
 
 
-	def parse_document(self, etree):
+	def parse_document(self, etree, systemdate):
 		query_queue = collections.defaultdict(list)
+
+		systemdate_sqlite_str = systemdate.strftime('%Y-%m-%d %H:%M:%S.%f')
 
 
 		snapshot_utc_date = datetime.datetime.utcfromtimestamp(
@@ -496,6 +502,7 @@ class Downloader:
 						'replace',
 						eventid = eventid,
 						date = snapshot_sqlite_str,
+						systemdate = systemdate_sqlite_str,
 						mlmax = int(coalesce(event_el, 'contest_maximum', 1)),
 					)
 					add_args(
@@ -537,6 +544,7 @@ class Downloader:
 						eventid = eventid,
 						periodnumber = periodnumber,
 						date = snapshot_sqlite_str,
+						systemdate = systemdate_sqlite_str,
 						status = period_el.find('period_status').text,
 						upd = period_el.find('period_update').text,
 						spreadmax = int(float(period_el.find('spread_maximum').text)),
@@ -638,6 +646,8 @@ class Downloader:
 						raise
 				conn.commit()
 			LOGGER.info('Queue execution done.')
+			if self.call_when_update_done is not None:
+				self.call_when_update_done(systemdate)
 
 
 	def to_tree(self, url):
@@ -652,12 +662,16 @@ class Downloader:
 
 	def start(self):
 
+# It's important that systemdate is calculated BEFORE the download
+# is started. Otherwise the freshness of the odds will be overestimated,
+# leaving room for cheating by users of the beat-the-closing-line game.
+		systemdate = datetime.datetime.utcnow()
 		last_tree = self.to_tree(STATIC_URL)
 		last_download_time = time.time()
 		self.make_db()
 		while True:
 
-			self.parse_document(last_tree)
+			self.parse_document(last_tree, systemdate)
 
 
 			url = (
@@ -675,6 +689,7 @@ class Downloader:
 			LOGGER.info('New url: %s', url)
 			last_tree = self.to_tree(url)
 			last_download_time = time.time()
+			systemdate = datetime.datetime.utcnow()
 
 if __name__ == '__main__':
 	parser = argparse.ArgumentParser(
