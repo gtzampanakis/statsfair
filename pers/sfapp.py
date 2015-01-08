@@ -49,6 +49,7 @@ class Snapshot(Base):
 	eventid = Column(Integer, ForeignKey('pinn.events.id'))
 	periodnumber = Column(Integer)
 	date = Column(DateTime)
+	systemdate = Column(DateTime)
 	mlmax = Column(Integer)
 	event = relationship(Event, backref = backref('snapshots'))
 
