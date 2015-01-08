@@ -8,7 +8,7 @@ ROOT_DIR = os.path.dirname(__file__)
 if __name__ == '__main__':
 
 	def call_when_update_done(systemdate):
-		from statsfair.scripts.pending_to_started import pending_to_started
+		from statsfair.pending_to_started import pending_to_started
 		LOGGER.info('Calling pending_to_started with systemdate: %s', systemdate)
 		pending_to_started(systemdate)
 	def f():
