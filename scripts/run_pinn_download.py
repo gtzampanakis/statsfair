@@ -9,8 +9,10 @@ if __name__ == '__main__':
 
 	def call_when_update_done(systemdate):
 		from statsfair.pending_to_started import pending_to_started
+		from statsfair.started_to_settled import started_to_settled
 		LOGGER.info('Calling pending_to_started with systemdate: %s', systemdate)
 		pending_to_started(systemdate)
+		started_to_settled()
 	def f():
 		pd.Downloader(60., call_when_update_done).start()
 

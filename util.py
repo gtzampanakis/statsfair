@@ -2,7 +2,6 @@ import os, contextlib, logging
 
 LOGGER = logging.getLogger()
 
-PENDING_LIFESPAN = 80
 SAFETY_WAIT_PERIOD = 80
 
 def get_web_config():
