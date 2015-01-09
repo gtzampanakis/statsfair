@@ -17,6 +17,13 @@ class User(Base):
 	recupdatedat = Column(DateTime, default = func.utc_timestamp(), 
 										onupdate = func.utc_timestamp())
 
+	def get_balance(self):
+		return (
+				sum(b.balance for b in self.init_balances) 
+				+ sum(t.amount for t in self.transactions)
+		)
+
+
 class Event(Base):
 	__tablename__ = 'events'
 	__table_args__ = {'schema' : 'pinn'}
@@ -113,7 +120,7 @@ class InitBalance(Base):
 	recupdatedat = Column(DateTime, default = func.utc_timestamp(), 
 										onupdate = func.utc_timestamp())
 
-	user = relationship(User)
+	user = relationship(User, backref = backref('init_balances'))
 
 class Transaction(Base):
 	__tablename__ = 'transactions'

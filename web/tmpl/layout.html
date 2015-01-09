@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <%!
+import cherrypy as cp
 %>
 <html lang="en">
   <head>
@@ -56,8 +57,14 @@
                 <li><a href="#">One more separated link</a></li>
               </ul>
             </li>
+
+			% if cp.thread_data.user is not None:
+			<li><a href>User: ${cp.thread_data.user.username | h}, Balance: ${cp.thread_data.user.get_balance() | h}</a></li>
+			% endif
           </ul>
         </div><!--/.nav-collapse -->
+		<div>
+		</div>
 	  </div><!--container-->
     </nav>
 
