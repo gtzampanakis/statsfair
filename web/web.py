@@ -194,7 +194,6 @@ AVAILABLE_BETS_COLUMN = [
 AvailableBet = collections.namedtuple('AvailableBet', AVAILABLE_BETS_COLUMN)
 
 def get_available(only_latest = True, extra_filter = None):
-	conn = cp.thread_data.engine_sfapp.connect()
 	sql = '''
 	select
 	evdate,
@@ -223,7 +222,7 @@ def get_available(only_latest = True, extra_filter = None):
 	limit 20000
 	'''.format(extra_filter = extra_filter or '1=1',
 					latest = 'latest' if only_latest else 1)
-	raw = conn.execute(sql).fetchall()
+	raw = cp.thread_data.sfapp.execute(sql).fetchall()
 
 	available = [ ]
 	
