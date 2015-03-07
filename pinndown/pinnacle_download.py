@@ -6,8 +6,6 @@ import commonlib as cl
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 STATIC_URL = 'http://xml.pinnaclesports.com/pinnacleFeed.aspx?'
 
-ERROR_DUPLICATE_KEY_NAME = 1061
-
 VHDOU_VAL = {
 		'Draw' : 'd',
 		'Home' : 'h',
@@ -249,180 +247,6 @@ class Downloader:
 	def __init__(self, update_interval, call_when_update_done = None):
 		self.update_interval = update_interval
 		self.call_when_update_done = call_when_update_done
-
-
-	def make_db(self):
-		with get_conn_mysql() as conn:
-			create_sql = ('''
-			create table if not exists events(
-				id int unsigned primary key, 
-				date datetime not null,
-				sporttype varchar(50),
-				league varchar(255),
-				islive bit(1) not null,
-				description varchar(255)
-			)engine = InnoDB|
-			create table if not exists participants(
-				id mediumint unsigned primary key auto_increment, 
-				eventid int unsigned not null,
-				contestantnum integer unsigned not null,
-				rotnum mediumint unsigned not null,
-				vhdou char(1) character set latin1,
-				name varchar(200) not null,
-				pitcher varchar(200),
-				unique (eventid, contestantnum, rotnum)
-			)engine = InnoDB|
-			create table if not exists periods(
-				id mediumint unsigned primary key auto_increment, 
-				eventid int unsigned not null,
-				number tinyint unsigned not null,
-				description varchar(25) not null,
-				cutoff datetime not null,
-				unique (eventid, number)
-			)engine = InnoDB|
-			create table if not exists snapshots(
-				id integer unsigned primary key auto_increment,
-				eventid int unsigned not null,
-				periodnumber tinyint unsigned,
-				date datetime not null,
-				systemdate datetime not null,
-				status char(1) character set latin1,
-				upd varchar(20),
-				spreadmax mediumint unsigned,
-				mlmax mediumint unsigned,
-				totalmax mediumint unsigned,
-				unique (eventid, periodnumber, date)
-			)engine = InnoDB|
-			create table if not exists odds(
-				id integer unsigned primary key auto_increment, 
-				eventid int unsigned not null,
-				periodnumber tinyint unsigned,
-				contestantnum integer unsigned,
-				rotnum mediumint unsigned,
-				snapshotdate datetime not null,
-				type char(1) character set latin1 not null,
-				vhdou char(1) character set latin1,
-				threshold decimal(6,3),
-				price float not null,
-				to_base float,
-				opening tinyint unsigned,
-				latest tinyint unsigned,
-				unique (eventid, periodnumber, snapshotdate, type, vhdou, threshold),
-				check(price >= 1),
-				check(type = 'm' and threshold = 0 or type <> 'm')
-
-			)engine = InnoDB|
-
-			create index participants1 on participants(eventid, vhdou)|
-			create index participants2 on participants(name)|
-			create index participants3 on participants(vhdou, eventid)|
-			create index events1 on events(sporttype, date, id)|
-			create index events2 on events(date, id)|
-			create index events3 on events(date, islive)|
-			create index odds1 on odds(snapshotdate, type)|
-			create index odds2 on odds(type)|
-			create index periods1 on periods(number)|
-
-
-			create or replace view gamesdenorm as 
-			select
-			ev.id as evid,
-			ev.date as evdate,
-			ev.sporttype as sporttype,
-			ev.league as league, 
-			ev.islive,
-			pah.name as pahnameraw,
-			pah.pitcher pahpitcher,
-			(case when pah.pitcher is null then pah.name
-				else concat(pah.name , ' (' , pah.pitcher , ')') end) as pahname, 
-			pav.name pavnameraw,
-			pav.pitcher pavpitcher,
-			(case when pav.pitcher is null then pav.name
-				else concat(pav.name , ' (' , pav.pitcher , ')') end) as pavname, 
-			pe.number as penumber,
-			pe.description as pedesc,
-			odh.threshold as threshold, 
-			odh.type as bettype,
-			case odh.type when 'm' then 'moneyline'
-						when 't' then 'total'
-						when 's' then 'spread'
-			end as bettypehr,
-			odh.price as hprice, 
-			odd.price as dprice, 
-			odv.price as vprice,
-			(case odh.type when 'm' then sn.mlmax
-							when 's' then sn.spreadmax
-							when 't' then sn.totalmax
-			end) as betlimit,
-			odh.snapshotdate as snapshotdate,
-			odh.opening,
-			odh.latest,
-			odh.id as hid,
-			odd.id as did,
-			odv.id as vid
-
-
-			from
-
-			events ev
-			join participants pah on pah.eventid = ev.id and pah.vhdou = 'h'
-			join participants pav on pav.eventid = ev.id and pav.vhdou = 'v'
-			join periods pe on pe.eventid = ev.id
-			join odds odh on odh.eventid = ev.id and odh.periodnumber = pe.number 
-					and odh.type = odh.type 
-					and pah.contestantnum = odh.contestantnum
-					and pah.rotnum = odh.rotnum
-
-			join odds odv on odv.eventid = ev.id and odv.periodnumber = pe.number 
-					and odv.type = odh.type 
-					and pav.contestantnum = odv.contestantnum
-					and pav.rotnum = odv.rotnum
-					and odv.snapshotdate = odh.snapshotdate
-
-			join snapshots sn on sn.eventid = ev.id and sn.periodnumber = odh.periodnumber
-				and sn.date = odh.snapshotdate
-
-			/* The following LEFT JOIN should be after the ODH JOIN
-			 * (because it uses values from the above JOIN), but also
-			 * needs to be before the ODD join, because the ODD join
-			 * uses values from it. */
-			left join participants pad on pad.eventid = ev.id and pad.vhdou = 'd' and odh.type = 'm'
-
-			left join odds odd on odd.eventid = ev.id 
-					and odd.periodnumber = pe.number 
-					and odd.type = odh.type 
-					and odd.snapshotdate = odh.snapshotdate
-					and pad.contestantnum = odd.contestantnum
-					and pad.rotnum = odd.rotnum
-
-			/* Sometimes contstantnums change in the same event, and 
-			sometimes events are posted with 'Draw' participants but
-			without moneyline odds (only spreads and totals are
-			posted).  This can lead to cases where Draw odds are
-			returned as null by this query, since a 'Draw' participant
-			is found but no odds record can be associated with him. The
-			following check will avoid those cases. */
-			where (pad.id is null and odd.id is null 
-				or 
-				pad.id is not null and odd.id is not null)
-			and (case odh.type when 'm' then sn.mlmax
-							when 's' then sn.spreadmax
-							when 't' then sn.totalmax
-			end) > 0
-			
-
-			'''
-			)
-			for query in create_sql.split('|'):
-				try:
-					conn.execute(query)
-				except (db_module.ProgrammingError, db_module.OperationalError) as e:
-					if (getattr(e, 'errno', None) == ERROR_DUPLICATE_KEY_NAME
-							or
-						getattr(e, 'args', [None])[0] == ERROR_DUPLICATE_KEY_NAME):
-							LOGGER.debug('Ignored ERROR_DUPLICATE_KEY_NAME exception.')
-					else:
-						raise
 
 
 	def parse_document(self, etree, systemdate):
@@ -668,7 +492,6 @@ class Downloader:
 		systemdate = datetime.datetime.utcnow()
 		last_tree = self.to_tree(STATIC_URL)
 		last_download_time = time.time()
-		self.make_db()
 		while True:
 
 			self.parse_document(last_tree, systemdate)
@@ -722,5 +545,5 @@ if __name__ == '__main__':
 	try:
 		downloader.start()
 	except Exception as exc:
-		LOGGER.critical('Unhandled exception: %s', exc)
+		LOGGER.exception('Unhandled exception: \n%s', exc)
 		raise
