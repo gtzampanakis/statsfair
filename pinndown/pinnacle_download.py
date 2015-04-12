@@ -560,6 +560,7 @@ if __name__ == '__main__':
 			f = downloader.start,
 			also_log_to_stderr = ALSO_TO_STDERR,
 			level = logging.DEBUG,
+			lockid = 'pinnacle_download',
 	)
 
 	daemon.start()
