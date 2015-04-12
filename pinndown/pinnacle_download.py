@@ -1,10 +1,13 @@
 import time, os, logging, sqlite3, datetime, logging.handlers, collections, urllib2, argparse
 import xml.etree.ElementTree as etree
 import MySQLdb as db_module
+import daemon
 import commonlib as cl
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 STATIC_URL = 'http://xml.pinnaclesports.com/pinnacleFeed.aspx?'
+
+ALSO_TO_STDERR = 0
 
 VHDOU_VAL = {
 		'Draw' : 'd',
@@ -526,24 +529,40 @@ if __name__ == '__main__':
 			default = 120)
 	args = parser.parse_args()
 	UPDATE_INTERVAL = args.i
-	formatter = logging.Formatter(fmt = '%(asctime)s %(levelname)s %(name)s: %(message)s')
-	ROOT_LOGGER.setLevel(logging.DEBUG)
-	stream_handler = logging.StreamHandler()
-	stream_handler.setFormatter(formatter)
-	stream_handler.setLevel(logging.DEBUG)
-	rotating_file_handler = logging.handlers.RotatingFileHandler(
-			os.path.join(ROOT_DIR, os.path.basename(os.path.abspath(__file__)) + '.log'),
-			maxBytes = 10 * 1024 * 1024, 
-			backupCount = 2, 
-			encoding = 'utf-8'
-	)
-	rotating_file_handler.setFormatter(formatter)
-	rotating_file_handler.setLevel(logging.DEBUG)
-	ROOT_LOGGER.addHandler(stream_handler)
-	ROOT_LOGGER.addHandler(rotating_file_handler)
+	### formatter = logging.Formatter(fmt = '%(asctime)s %(levelname)s %(name)s: %(message)s')
+	### ROOT_LOGGER.setLevel(logging.DEBUG)
+	### if ALSO_TO_STDERR:
+	### 	stream_handler = logging.StreamHandler()
+	### 	stream_handler.setFormatter(formatter)
+	### 	stream_handler.setLevel(logging.DEBUG)
+	### rotating_file_handler = logging.handlers.RotatingFileHandler(
+	### 		os.path.join(ROOT_DIR, os.path.basename(os.path.abspath(__file__)) + '.log'),
+	### 		maxBytes = 10 * 1024 * 1024, 
+	### 		backupCount = 2, 
+	### 		encoding = 'utf-8'
+	### )
+	### rotating_file_handler.setFormatter(formatter)
+	### rotating_file_handler.setLevel(logging.DEBUG)
+	### if ALSO_TO_STDERR:
+	### 	ROOT_LOGGER.addHandler(stream_handler)
+	### ROOT_LOGGER.addHandler(rotating_file_handler)
 	downloader = Downloader(UPDATE_INTERVAL)
-	try:
-		downloader.start()
-	except Exception as exc:
-		LOGGER.exception('Unhandled exception: \n%s', exc)
-		raise
+	### try:
+	### 	downloader.start()
+	### except Exception as exc:
+	### 	LOGGER.exception('Unhandled exception: \n%s', exc)
+	### 	raise
+
+	daemon = daemon.Daemon(
+			logpath = os.path.join(ROOT_DIR, 
+				os.path.basename(os.path.abspath(__file__)) + '.log'),
+			update_interval_seconds = UPDATE_INTERVAL,
+			f = downloader.start,
+			also_log_to_stderr = ALSO_TO_STDERR,
+			level = logging.DEBUG,
+	)
+
+	daemon.start()
+
+
+
