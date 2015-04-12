@@ -173,7 +173,7 @@ def get_conn_mysql():
 			host = 'mysql.server',
 			user = 'giorgostzampanak',
 			passwd = 'foopassword',
-			db = 'giorgostzampanak$pinnacle11',
+			db = 'giorgostzampanak$pinnacle12',
 # Even when the default encoding of the database is utf8, we have to use the
 # following two options because MySQLdb does not detect encoding and will still
 # try to use latin1.
