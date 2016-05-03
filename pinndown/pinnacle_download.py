@@ -170,7 +170,8 @@ def get_conn_mysql():
 
 	if os.path.exists(os.path.join(ROOT_DIR, 'pythonanywhere')):
 		db_api_conn = db_module.connect(
-			host = 'mysql.server',
+			#host = 'mysql.server',
+			host = 'giorgostzampanakis.mysql.pythonanywhere-services.com',
 			user = 'giorgostzampanak',
 			passwd = 'foopassword',
 			db = 'giorgostzampanak$pinnacle12',
