@@ -107,7 +107,7 @@ CREATE TABLE `odds` (
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `participants` (
-  `id` mediumint(8) unsigned NOT NULL AUTO_INCREMENT,
+  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
   `eventid` int(10) unsigned NOT NULL,
   `contestantnum` int(10) unsigned NOT NULL,
   `rotnum` mediumint(8) unsigned NOT NULL,
